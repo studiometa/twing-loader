@@ -33,7 +33,7 @@ const optionsSchema = {
 
 class PathSupportingArrayLoader extends TwingLoaderArray {
     getSourceContext(name: string, from: TwingSource): Promise<TwingSource> {
-        return super.getSourceContext(name, from).then((source) => {
+        return super.getSourceContext(name, from).then((source:TwingSource) => {
             return new TwingSource(source.getCode(), source.getName(), name);
         })
     }
