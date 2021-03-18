@@ -7,7 +7,7 @@ import {
     TwingNodeModule,
     TwingSource, TwingTokenStream
 } from 'twing';
-import {Visitor} from "./visitor";
+import {Visitor} from './visitor';
 
 const sha256 = require('crypto-js/sha256');
 const hex = require('crypto-js/enc-hex');
@@ -32,14 +32,16 @@ const optionsSchema = {
 };
 
 class PathSupportingArrayLoader extends TwingLoaderArray {
-    getSourceContext(name: string, from: TwingSource): TwingSource {
-        let source = super.getSourceContext(name, from);
-
-        return new TwingSource(source.getCode(), source.getName(), name);
+    getSourceContext(name: string, from: TwingSource): Promise<TwingSource> {
+        return super.getSourceContext(name, from).then((source:TwingSource) => {
+            return new TwingSource(source.getCode(), source.getName(), name);
+        })
     }
 }
 
-export default function (this: loader.LoaderContext, source: string) {
+export default async function (this: loader.LoaderContext, source: string) {
+    const callback = this.async();
+
     const getTemplateHash = (name: string) => {
         return this.mode !== 'production' ? name : hex.stringify(sha256(name));
     };
@@ -54,7 +56,7 @@ export default function (this: loader.LoaderContext, source: string) {
 
     this.addDependency(slash(environmentModulePath));
 
-    // require takes module name separated wicth forward slashes
+    // require takes module name separated with forward slashes
     let environment: TwingEnvironment = require(slash(environmentModulePath));
     let loader = environment.getLoader();
 
@@ -73,13 +75,13 @@ export default function (this: loader.LoaderContext, source: string) {
             tokenStream = environment.tokenize(sourceContext);
             nodeModule = environment.parse(tokenStream);
         } catch (err) {
-            this.callback(err);
+            callback(err);
             return null;
         }
 
         let visitor = new Visitor(loader, resourcePath, getTemplateHash);
 
-        visitor.visit(nodeModule);
+        await visitor.visit(nodeModule);
 
         let precompiledTemplate = environment.compile(nodeModule);
 
@@ -102,13 +104,13 @@ ${precompiledTemplate}
         parts.push(`env.registerTemplatesModule(templatesModule, '${key}');`);
 
         parts.push(`
-let template = env.loadTemplate('${key}');
+let loadTemplate = () => env.loadTemplate('${key}');
 
 module.exports = (context = {}) => {
-    return template.render(context);
+    return loadTemplate().then((template) => template.render(context));
 };`);
 
-        return parts.join('\n');
+        callback(null, parts.join('\n'));
     } else {
         environment.setLoader(new TwingLoaderChain([
             new PathSupportingArrayLoader(new Map([
@@ -118,9 +120,11 @@ module.exports = (context = {}) => {
         ]));
 
         environment.on('template', (name: string, from: TwingSource) => {
-            this.addDependency(environment.getLoader().resolve(name, from));
+            environment.getLoader().resolve(name, from)
+              .then((path) => this.addDependency(path))
+              .catch((e) => {});
         });
 
-        return `module.exports = ${JSON.stringify(environment.render(resourcePath, renderContext))};`;
+        callback(null, `module.exports = ${JSON.stringify(await environment.render(resourcePath, renderContext))};`);
     }
 };
