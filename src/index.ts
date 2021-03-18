@@ -39,7 +39,7 @@ class PathSupportingArrayLoader extends TwingLoaderArray {
     }
 }
 
-export default async function (this: loader.LoaderContext, source: string) {
+export default async function (this:loader.LoaderContext, source: string):Promise<string | Buffer | void | undefined> {
     const callback = this.async();
 
     const getTemplateHash = (name: string) => {
