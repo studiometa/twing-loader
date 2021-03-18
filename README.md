@@ -6,7 +6,7 @@ Webpack loader for Twig templates, based on [Twing](https://www.npmjs.com/packag
 ## Prerequisites
 
 * Webpack 4
-* Twing 3.0.1
+* Twing 5
 
 ## Installation
 
